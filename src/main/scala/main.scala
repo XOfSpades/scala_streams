@@ -10,9 +10,9 @@ import scala.concurrent._
 import scala.concurrent.duration._
 import java.nio.file.Paths
 
-object Sink {
-  def lineSink(filename: String): Sink[String, Future[IOResult]] =
-    Flow[String]
+object SinkGenerator {
+  def lineSink(filename: String): Sink[Int, Future[IOResult]] =
+    Flow[Int]
       .map { s => ByteString(s + "\n") }
       .toMat(FileIO.toPath(Paths.get(filename)))(Keep.right)
 }
@@ -21,28 +21,32 @@ object Main extends App {
 
   println("Hello world")
 
-  val source: Source[Int, NotUsed] = Source(1 to 100)
-
   implicit val system = ActorSystem("QuickStart")
   implicit val materializer = ActorMaterializer()
 
-  //source.runForeach(i => println(i))(materializer)
+    val g = RunnableGraph.fromGraph(GraphDSL.create() { implicit builder: GraphDSL.Builder[NotUsed] =>
+    import GraphDSL.Implicits._
+    val in = Source(1 to 10)
+    val out = SinkGenerator.lineSink("factorial1.txt") //Sink.ignore
 
-  val factorials = source.scan(BigInt(1))((acc, next) => acc * next)
+    val bcast = builder.add(Broadcast[Int](2))
+    val merge = builder.add(Merge[Int](2))
 
-  val result: Future[IOResult] =
-    factorials
-      .zipWithIndex
-      .map { case (value, index) => index + "! = " + value}
-      .runWith(Sink.lineSink("factorial1.txt"))
+    val f1 = Flow[Int].filter(_ % 2 == 0)
+    val f2 = Flow[Int].filter(_ % 2 == 1)
+    val f3 = Flow[Int].map { value => value * value * value }
+    val f4 = Flow[Int].map { value => -1 * value * value }
 
-
-
-    // factorials
-    //   .map(num => ByteString(s"$num"))
-    //   .runWith(Sink.linkSink("factorial.txt"))
-
-
-
-
+    in ~> bcast ~> f1 ~> f3 ~> merge ~> out
+    bcast ~> f2 ~> f4 ~> merge
+    ClosedShape
+  })
+  g.run()
 }
+
+
+//   def writeNumbers(fileName: String): Sink[BigInt, Unit] =
+//     Flow[BigInt]
+//       .map { number => ByteString(number + "\n") }
+//       .runWith(Sink.lineSink(fileName))
+// }
