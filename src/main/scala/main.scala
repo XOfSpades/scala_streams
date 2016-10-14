@@ -19,7 +19,14 @@ object Main extends App {
   implicit val system = ActorSystem("QuickStart")
   implicit val materializer = ActorMaterializer()
 
-  source.runForeach(i => println(i))(materializer)
+  //source.runForeach(i => println(i))(materializer)
+
+  val factorials = source.scan(BigInt(1))((acc, next) => acc * next)
+
+  val result: Future[IOResult] =
+    factorials
+      .map(num => ByteString(s"$num\n"))
+      .runWith(FileIO.toPath(Paths.get("factorials.txt")))
 
 
 
