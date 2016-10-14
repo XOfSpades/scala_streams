@@ -37,16 +37,10 @@ object Main extends App {
     val f3 = Flow[Int].map { value => value * value * value }
     val f4 = Flow[Int].map { value => -1 * value * value }
 
-    in ~> bcast ~> f1 ~> f3 ~> merge ~> out
-    bcast ~> f2 ~> f4 ~> merge
+    in ~> bcast.in
+    bcast.out(0) ~> f1 ~> f3 ~> merge ~> out
+    bcast.out(1) ~> f2 ~> f4 ~> merge
     ClosedShape
   })
   g.run()
 }
-
-
-//   def writeNumbers(fileName: String): Sink[BigInt, Unit] =
-//     Flow[BigInt]
-//       .map { number => ByteString(number + "\n") }
-//       .runWith(Sink.lineSink(fileName))
-// }
