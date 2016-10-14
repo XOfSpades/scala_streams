@@ -10,6 +10,13 @@ import scala.concurrent._
 import scala.concurrent.duration._
 import java.nio.file.Paths
 
+object Sink {
+  def lineSink(filename: String): Sink[String, Future[IOResult]] =
+    Flow[String]
+      .map { s => ByteString(s + "\n") }
+      .toMat(FileIO.toPath(Paths.get(filename)))(Keep.right)
+}
+
 object Main extends App {
 
   println("Hello world")
@@ -25,8 +32,16 @@ object Main extends App {
 
   val result: Future[IOResult] =
     factorials
-      .map(num => ByteString(s"$num\n"))
-      .runWith(FileIO.toPath(Paths.get("factorials.txt")))
+      .zipWithIndex
+      .map { case (value, index) => index + "! = " + value}
+      .runWith(Sink.lineSink("factorial1.txt"))
+
+
+
+    // factorials
+    //   .map(num => ByteString(s"$num"))
+    //   .runWith(Sink.linkSink("factorial.txt"))
+
 
 
 
