@@ -24,23 +24,39 @@ object Main extends App {
   implicit val system = ActorSystem("QuickStart")
   implicit val materializer = ActorMaterializer()
 
-    val g = RunnableGraph.fromGraph(GraphDSL.create() { implicit builder: GraphDSL.Builder[NotUsed] =>
-    import GraphDSL.Implicits._
-    val in = Source(1 to 10)
-    val out = SinkGenerator.lineSink("factorial1.txt") //Sink.ignore
+// See: http://doc.akka.io/docs/akka/current/scala/stream/stream-composition.html
+
+  import GraphDSL.Implicits._
+  val flowPartial = GraphDSL.create() { implicit builder =>
+    val evenSelector = builder.add(Flow[Int].filter(_ % 2 == 0))
+    val oddSelector = builder.add(Flow[Int].filter(_ % 2 == 1))
+    val square = builder.add(Flow[Int].map { i => i * i })
+    val cubics = builder.add(Flow[Int].map{ i => i * i * i })
+    val negative = builder.add(Flow[Int].map{ i => -1 * i })
 
     val bcast = builder.add(Broadcast[Int](2))
     val merge = builder.add(Merge[Int](2))
 
-    val f1 = Flow[Int].filter(_ % 2 == 0)
-    val f2 = Flow[Int].filter(_ % 2 == 1)
-    val f3 = Flow[Int].map { value => value * value * value }
-    val f4 = Flow[Int].map { value => -1 * value * value }
+    bcast.out(0) ~> evenSelector ~> cubics ~> merge.in(0)
+    bcast.out(1) ~> oddSelector ~> square ~> negative ~> merge.in(1)
 
-    in ~> bcast.in
-    bcast.out(0) ~> f1 ~> f3 ~> merge ~> out
-    bcast.out(1) ~> f2 ~> f4 ~> merge
-    ClosedShape
-  })
-  g.run()
+    FlowShape(bcast.in,  merge.out)
+  }.named("FlowPartial")
+
+  val sourcePartial = GraphDSL.create() { implicit builder =>
+    val source = builder.add(Source(1 to 10))
+    SourceShape(source.out)
+  }.named("SourcePartial")
+
+  val sinkPartial = GraphDSL.create() { implicit builder =>
+    val toString = builder.add(Flow[Int].map{ i => i.toString + "\n" })
+    val sink = builder.add(Sink.foreach { i: String => println(i) })
+
+    toString.out ~> sink
+
+    SinkShape(toString.in)
+  }
+
+  val graph = Source.fromGraph(sourcePartial).via(flowPartial).to(Sink.fromGraph(sinkPartial))
+  graph.run
 }
