@@ -1,7 +1,7 @@
 package myStreams
 
 import akka.stream._
-import akka.stream.scaladsl.{ Source, Sink }
+import akka.stream.scaladsl.{ Keep, Flow, Source, Sink }
 import akka.actor.{ ActorSystem }
 import akka.testkit.{ TestKit, TestProbe }
 
@@ -57,6 +57,26 @@ class StreamGraphSpec extends TestKit(ActorSystem("KidSpec"))
 
       assert(result == Seq(-1, 8, -9, 64, -25, 216, -49, 512, -81, 1000))
 
+    }
+  }
+
+  "A Sink" must {
+    "be testable" in {
+      val sinkUnderTest = Flow[Int].map(_ * 2).toMat(Sink.fold(0)(_ + _))(Keep.right)
+
+      val future = Source(1 to 4).runWith(sinkUnderTest)
+      val result = Await.result(future, 3.seconds)
+      assert(result == 20)
+    }
+  }
+
+  "A Source" must {
+    "be testable" in {
+      val sourceUnderTest = Source.repeat(1).map(_ * 2)
+
+      val future = sourceUnderTest.take(10).runWith(Sink.seq)
+      val result = Await.result(future, 3.seconds)
+      assert(result == Seq.fill(10)(2))
     }
   }
 }
