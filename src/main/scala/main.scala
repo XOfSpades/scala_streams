@@ -7,7 +7,7 @@ package runtime
 // import akka.actor.ActorSystem
 // import akka.util.ByteString
 
-import myStreams.StreamGraph
+import myStreams.{ StreamGraph, Factorial}
 
 import scala.concurrent._
 import scala.concurrent.duration._
@@ -28,6 +28,7 @@ object Main extends App {
 
   async {
     StreamGraph.runStream
+    Factorial.runStream
   }
 
   Thread.sleep(2000)
