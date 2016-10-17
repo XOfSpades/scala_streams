@@ -2,6 +2,7 @@ package myStreams
 
 import akka.stream._
 import akka.stream.scaladsl._
+import akka.stream.Graph
 
 import akka.{ NotUsed, Done }
 import akka.actor.ActorSystem
@@ -10,15 +11,31 @@ import scala.concurrent._
 import scala.concurrent.duration._
 
 object StreamGraph {
+
+  implicit val system = ActorSystem("QuickStart")
+  implicit val materializer = ActorMaterializer()
+
+  // See:
+  // http://doc.akka.io/docs/akka/current/scala/stream/stream-composition.html
+
+  import GraphDSL.Implicits._
+
   def runStream {
-    implicit val system = ActorSystem("QuickStart")
-    implicit val materializer = ActorMaterializer()
+    val flowPartial = flow()
 
-    // See:
-    // http://doc.akka.io/docs/akka/current/scala/stream/stream-composition.html
+    val sourcePartial = source()
 
-    import GraphDSL.Implicits._
-    val flowPartial = GraphDSL.create() { implicit builder =>
+    val sinkPartial = sink()
+
+    val graph =
+      Source.fromGraph(sourcePartial)
+            .via(flowPartial)
+            .to(Sink.fromGraph(sinkPartial))
+    graph.run
+  }
+
+  def flow(): Graph[akka.stream.FlowShape[Int, Int],akka.NotUsed] = {
+    GraphDSL.create() { implicit builder =>
       val evenSelector = builder.add(Flow[Int].filter(_ % 2 == 0))
       val oddSelector = builder.add(Flow[Int].filter(_ % 2 == 1))
       val square = builder.add(Flow[Int].map { i => i * i })
@@ -33,25 +50,23 @@ object StreamGraph {
 
       FlowShape(bcast.in,  merge.out)
     }.named("FlowPartial")
+  }
 
-    val sourcePartial = GraphDSL.create() { implicit builder =>
+  def source(): Graph[akka.stream.SourceShape[Int],akka.NotUsed] = {
+    GraphDSL.create() { implicit builder =>
       val source = builder.add(Source(1 to 10))
       SourceShape(source.out)
     }.named("SourcePartial")
+  }
 
-    val sinkPartial = GraphDSL.create() { implicit builder =>
+  def sink(): Graph[akka.stream.SinkShape[Int],akka.NotUsed] = {
+    GraphDSL.create() { implicit builder =>
       val toString = builder.add(Flow[Int].map{ i => i.toString + "\n" })
       val sink = builder.add(Sink.foreach { i: String => println(i) })
 
       toString.out ~> sink
 
       SinkShape(toString.in)
-    }
-
-    val graph =
-      Source.fromGraph(sourcePartial)
-            .via(flowPartial)
-            .to(Sink.fromGraph(sinkPartial))
-    graph.run
+    }.named("SinkPartial")
   }
 }
