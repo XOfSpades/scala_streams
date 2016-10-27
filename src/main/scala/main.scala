@@ -29,6 +29,7 @@ object Main extends App {
   async {
     StreamGraph.runStream
     Factorial.runStream
+    Weather.run
   }
 
   Thread.sleep(2000)
